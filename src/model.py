@@ -5,38 +5,26 @@ from . import config
 from . import data as data_mod
 
 
-class Head(nn.Module):
-    def __init__(self, head_size):
+class MultiHeadAttention(nn.Module):
+    def __init__(self):
         super().__init__()
-        self.key = nn.Linear(config.n_embd, head_size, bias=False)
-        self.query = nn.Linear(config.n_embd, head_size, bias=False)
-        self.value = nn.Linear(config.n_embd, head_size, bias=False)
+        self.c_attn = nn.Linear(in_features=config.n_embd, out_features=config.n_embd*3, bias=False)
+        self.c_proj = nn.Linear(in_features=config.n_embd,out_features=config.n_embd)
         self.register_buffer('tril', torch.tril(torch.ones(config.block_size, config.block_size)))
         self.dropout = nn.Dropout(config.dropout)
 
     def forward(self, x):
         B,T,C = x.shape
-        k = self.key(x)
-        q = self.query(x)
+
+        q, k, v  = self.c_attn(x).chunk(3, dim=-1)
+
         wei = q @ k.transpose(-2,-1) * k.shape[-1]**-0.5
         wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf'))
         wei = F.softmax(wei, dim=-1)
         wei = self.dropout(wei)
-        v = self.value(x)
         out = wei @ v
-        return out
 
-
-class MultiHeadAttention(nn.Module):
-    def __init__(self, num_heads, head_size):
-        super().__init__()
-        self.heads = nn.ModuleList([Head(head_size) for _ in range(num_heads)])
-        self.proj = nn.Linear(head_size * num_heads, config.n_embd)
-        self.dropout = nn.Dropout(config.dropout)
-
-    def forward(self, x):
-        out = torch.cat([h(x) for h in self.heads], dim=-1)
-        out = self.dropout(self.proj(out))
+        out = self.dropout(self.c_proj(out))
         return out
 
 
@@ -55,10 +43,9 @@ class FeedFoward(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, n_embd, n_head):
+    def __init__(self, n_embd):
         super().__init__()
-        head_size = n_embd // n_head
-        self.sa = MultiHeadAttention(n_head, head_size)
+        self.sa = MultiHeadAttention()
         self.ffwd = FeedFoward(n_embd)
         self.ln1 = nn.LayerNorm(n_embd)
         self.ln2 = nn.LayerNorm(n_embd)
@@ -74,7 +61,7 @@ class GPTLanguageModel(nn.Module):
         super().__init__()
         self.token_embedding_table = nn.Embedding(data_mod.vocab_size, config.n_embd)
         self.position_embedding_table = nn.Embedding(config.block_size, config.n_embd)
-        self.blocks = nn.Sequential(*[Block(config.n_embd, n_head=config.n_head) for _ in range(config.n_layer)])
+        self.blocks = nn.Sequential(*[Block(config.n_embd) for _ in range(config.n_layer)])
         self.ln_f = nn.LayerNorm(config.n_embd)
         self.lm_head = nn.Linear(config.n_embd, data_mod.vocab_size)
         self.apply(self._init_weights)
