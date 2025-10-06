@@ -1,1 +1,0 @@
-raise SystemExit("This module has been split into multiple files. Use main.py as entry point.")
