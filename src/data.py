@@ -1,43 +1,31 @@
 import torch
+from . import config
 
-def load_text(path: str = 'input.txt') -> str:
-    with open(path, 'r', encoding='utf-8') as f:
-        return f.read()
+with open('input.txt', 'r', encoding='utf-8') as f:
+    text = f.read()
 
-def build_vocab(text: str):
-    chars = sorted(list(set(text)))
-    stoi = { ch:i for i,ch in enumerate(chars) }
-    itos = { i:ch for i,ch in enumerate(chars) }
-    vocab_size = len(chars)
-    return chars, stoi, itos, vocab_size
+chars = sorted(list(set(text)))
+vocab_size = len(chars)
+stoi = { ch:i for i,ch in enumerate(chars) }
+itos = { i:ch for i,ch in enumerate(chars) }
 
-def encode(s: str, stoi: dict) -> list:
+def encode(s):
     return [stoi[c] for c in s]
 
-def decode(indices: list, itos: dict) -> str:
-    return ''.join([itos[i] for i in indices])
+def decode(l):
+    return ''.join([itos[i] for i in l])
 
-def make_splits(data_tensor: torch.Tensor, train_ratio: float = 0.9):
-    n = int(train_ratio * len(data_tensor))
-    train_data = data_tensor[:n]
-    val_data = data_tensor[n:]
-    return train_data, val_data
+data = torch.tensor(encode(text), dtype=torch.long)
+n = int(0.9*len(data))
+train_data = data[:n]
+val_data = data[n:]
 
-def get_batch(split: str,
-              train_data: torch.Tensor,
-              val_data: torch.Tensor,
-              block_size: int,
-              batch_size: int,
-              device: str):
-    data_split = train_data if split == 'train' else val_data
-    ix = torch.randint(len(data_split) - block_size, (batch_size,))
-    x = torch.stack([data_split[i:i+block_size] for i in ix])
-    y = torch.stack([data_split[i+1:i+block_size+1] for i in ix])
-    x, y = x.to(device), y.to(device)
+def get_batch(split):
+    data_tensor = train_data if split == 'train' else val_data
+    ix = torch.randint(len(data_tensor) - config.block_size, (config.batch_size,))
+    x = torch.stack([data_tensor[i:i+config.block_size] for i in ix])
+    y = torch.stack([data_tensor[i+1:i+config.block_size+1] for i in ix])
+    x, y = x.to(config.device), y.to(config.device)
     return x, y
-
-__all__ = [
-    'load_text', 'build_vocab', 'encode', 'decode', 'make_splits', 'get_batch'
-]
 
 
