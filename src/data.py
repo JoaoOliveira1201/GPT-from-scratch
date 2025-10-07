@@ -16,7 +16,7 @@ def decode(l):
     return ''.join([itos[i] for i in l])
 
 data = torch.tensor(encode(text), dtype=torch.long)
-n = int(0.9*len(data))
+n = int(config.train_test_split*len(data))
 train_data = data[:n]
 val_data = data[n:]
 
@@ -27,5 +27,3 @@ def get_batch(split):
     y = torch.stack([data_tensor[i+1:i+config.block_size+1] for i in ix])
     x, y = x.to(config.device), y.to(config.device)
     return x, y
-
-

@@ -8,8 +8,8 @@ from . import data as data_mod
 class MultiHeadAttention(nn.Module):
     def __init__(self):
         super().__init__()
-        self.c_attn = nn.Linear(in_features=config.n_embd, out_features=config.n_embd*3, bias=False)
-        self.c_proj = nn.Linear(in_features=config.n_embd,out_features=config.n_embd)
+        self.c_attn = nn.Linear(in_features=config.n_embd, out_features=config.n_embd*3, bias=config.bias)
+        self.c_proj = nn.Linear(in_features=config.n_embd,out_features=config.n_embd, bias=config.bias)
         self.register_buffer('tril', torch.tril(torch.ones(config.block_size, config.block_size)))
         self.dropout = nn.Dropout(config.dropout)
 
@@ -18,7 +18,7 @@ class MultiHeadAttention(nn.Module):
 
         q, k, v  = self.c_attn(x).chunk(3, dim=-1)
 
-        wei = q @ k.transpose(-2,-1) * k.shape[-1]**-0.5
+        wei = q @ k.transpose(-2,-1) * k.shape[-1]**-0.5 # Using torch scaled dot product attention is faster but this is cooler
         wei = wei.masked_fill(self.tril[:T, :T] == 0, float('-inf'))
         wei = F.softmax(wei, dim=-1)
         wei = self.dropout(wei)

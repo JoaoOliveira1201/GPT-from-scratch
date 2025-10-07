@@ -10,10 +10,12 @@ eval_interval = 500
 learning_rate = 3e-4
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 eval_iters = 200
-n_embd = 256
+n_embd = 384
 n_head = 4
 n_layer = 4
 dropout = 0.2
+train_test_split = 0.7
+bias = False
 model_path = os.path.join(os.path.dirname(__file__), '../weights/model.pth')
 torch.manual_seed(1337)
 
