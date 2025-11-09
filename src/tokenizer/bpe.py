@@ -29,22 +29,20 @@ class BPE:
         self.merges = merges
         self.vocab = vocab
 
-    def save(self, model_file_name:str):
+    def save(self, model_file_name: str):
         model_file = model_file_name + ".model"
-        with open(model_file, 'w') as f:
+        with open(model_file, "w") as f:
             f.write("Byte pair encoding - João\n")
             for merge_combo_1, merge_combo_2 in self.merges.keys():
                 f.write(f"{merge_combo_1} {merge_combo_2}\n")
 
-
-    def load(self, model_file:str):
-
+    def load(self, model_file: str):
         assert model_file.endswith(".model")
 
         merges = {}
         idx = 256
 
-        with open(model_file, 'r', encoding="utf-8") as f:
+        with open(model_file, "r", encoding="utf-8") as f:
             signature = f.readline().strip()
             assert signature == "Byte pair encoding - João"
 
@@ -76,7 +74,7 @@ class BPE:
             ids = merge(ids, pair, idx)
         return ids
 
-    def decode(self, ids:list[int]):
+    def decode(self, ids: list[int]):
         text_bytes = b"".join(self.vocab[idx] for idx in ids)
         text = text_bytes.decode("utf-8", errors="replace")
         return text
@@ -112,7 +110,7 @@ if __name__ == "__main__":
     bpe = BPE()
 
     file_path = (
-        "/Users/joao.oliveira/Desktop/GPT-from-scratch/data/tokenizer/taylorswift.txt"
+        "/Users/joaooliveira/Desktop/GPT-from-scratch/data/tokenizer/taylorswift.txt"
     )
     with open(file_path, "r", encoding="utf-8") as f:
         test_text = f.read()

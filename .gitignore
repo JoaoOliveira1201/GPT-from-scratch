@@ -4,3 +4,7 @@
 .vscode
 *.log
 *.pth
+.DS_Store
+*.model
+*.pkl
+.ruff_cache

@@ -1,5 +1,6 @@
 import torch
 from . import config
+from .tokenizer.bpe import BPE
 
 with open("input.txt", "r", encoding="utf-8") as f:
     text = f.read()
@@ -9,13 +10,16 @@ vocab_size = len(chars)
 stoi = {ch: i for i, ch in enumerate(chars)}
 itos = {i: ch for i, ch in enumerate(chars)}
 
+tokenizer = BPE()
+tokenizer.load("tokenizer/weights/bpe_weights.model")
+
 
 def encode(s):
-    return [stoi[c] for c in s]
+    return tokenizer.encode(s)
 
 
 def decode(l):
-    return "".join([itos[i] for i in l])
+    return tokenizer.decode(l)
 
 
 data = torch.tensor(encode(text), dtype=torch.long)
