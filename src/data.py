@@ -1,5 +1,7 @@
 import logging
 import torch
+import psutil
+import os
 from .configs import training as training_config
 from .configs import model as model_config
 from .tokenizer.bpe import BPE
@@ -68,13 +70,29 @@ class DataLoader:
         if self.train_data is None or self.val_data is None:
             raise ValueError("Data not loaded")
 
+        logger.debug(f"Getting batch for {split} split")
         data_tensor = self.train_data if split == "train" else self.val_data
-        ix = torch.randint(
-            len(data_tensor) - model_config.block_size, (training_config.batch_size,)
-        )
+
+        # Sample random starting indices for batches
+        max_start_idx = len(data_tensor) - model_config.block_size
+        ix = torch.randint(max_start_idx, (training_config.batch_size,))
+        logger.debug(f"Sampled {training_config.batch_size} batch indices from 0 to {max_start_idx}")
+
+        # Create input sequences
         x = torch.stack([data_tensor[i : i + model_config.block_size] for i in ix])
+        # Create target sequences (shifted by 1)
         y = torch.stack(
             [data_tensor[i + 1 : i + model_config.block_size + 1] for i in ix]
         )
+
+        # Move to device
         x, y = x.to(model_config.device), y.to(model_config.device)
+
+        # Log memory usage if available
+        if torch.cuda.is_available() and model_config.device == 'cuda':
+            memory_allocated = torch.cuda.memory_allocated() / 1024**2  # MB
+            memory_reserved = torch.cuda.memory_reserved() / 1024**2    # MB
+            logger.debug(f"GPU memory: allocated={memory_allocated:.1f}MB, reserved={memory_reserved:.1f}MB")
+
+        logger.debug(f"Batch created: x.shape={x.shape}, y.shape={y.shape}")
         return x, y

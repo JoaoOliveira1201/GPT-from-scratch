@@ -108,29 +108,50 @@ class GPTLanguageModel(nn.Module):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def forward(self, idx, targets=None):
+        logger.debug("Starting forward pass")
         B, T = idx.shape
+        logger.debug(f"Input shape: batch_size={B}, seq_len={T}")
+
         tok_emb = self.token_embedding_table(idx)
         pos_emb = self.position_embedding_table(
             torch.arange(T, device=model_config.device)
         )
         x = tok_emb + pos_emb
+        logger.debug("Embeddings computed")
+
         x = self.blocks(x)
+        logger.debug("Transformer blocks processed")
+
         x = self.ln_f(x)
         logits = self.lm_head(x)
+        logger.debug("Logits computed")
+
         loss = None
         if targets is not None:
             B2, T2, C = logits.shape
             logits_flat = logits.view(B2 * T2, C)
             targets_flat = targets.view(B2 * T2)
             loss = F.cross_entropy(logits_flat, targets_flat)
+            logger.debug(f"Loss computed: {loss.item():.4f}")
+
         return logits, loss
 
     def generate(self, idx, max_new_tokens):
-        for _ in range(max_new_tokens):
+        logger.debug(f"Starting token generation: max_new_tokens={max_new_tokens}")
+        initial_length = idx.shape[1]
+        logger.debug(f"Initial sequence length: {initial_length}")
+
+        for i in range(max_new_tokens):
+            if i % 100 == 0 and i > 0:
+                logger.debug(f"Generated {i}/{max_new_tokens} tokens")
+
             idx_cond = idx[:, -model_config.block_size :]
             logits, _ = self(idx_cond)
             logits = logits[:, -1, :]
             probs = F.softmax(logits, dim=-1)
             idx_next = torch.multinomial(probs, num_samples=1)
             idx = torch.cat((idx, idx_next), dim=1)
+
+        final_length = idx.shape[1]
+        logger.debug(f"Generation completed: final length={final_length}, generated {final_length - initial_length} tokens")
         return idx

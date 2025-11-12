@@ -8,4 +8,5 @@
 *.model
 *.pkl
 .ruff_cache
+logs/
 weights/
