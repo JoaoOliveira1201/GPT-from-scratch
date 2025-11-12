@@ -1,4 +1,7 @@
 import logging
+from collections import Counter
+from functools import lru_cache
+from numba import jit
 
 logger = logging.getLogger(__name__)
 
@@ -7,7 +10,7 @@ class BPE:
     def __init__(self):
         self.merges = {}  # (int,int) -> int
         self.vocab = {}  # id -> bytes
-
+        self._sorted_merges = None  # Cached sorted merges for encoding
     def train(self, text: str, vocab_size: int, verbose: bool = False):
         logger.info(
             f"Starting BPE training with vocab_size={vocab_size}, text_length={len(text)}"
@@ -23,10 +26,18 @@ class BPE:
         vocab = {idx: bytes([idx]) for idx in range(256)}  # int -> bytes
 
         for i in range(num_merges):
-            stats = get_stats(ids)
-            most_common_pair = max(stats, key=stats.get)
+            # Use efficient Counter to find most frequent pair
+            pair_counts = Counter(zip(ids, ids[1:]))
+
+            if not pair_counts:
+                logger.debug(f"No more pairs to merge after {i} merges")
+                break  # No more pairs to merge
+
+            # most_common(1) is more efficient than max() for finding top item
+            most_common_pair, count = pair_counts.most_common(1)[0]
             idx = 256 + i
 
+            # Perform the merge (JIT compiled for speed)
             ids = merge(ids, most_common_pair, idx)
 
             merges[most_common_pair] = idx
@@ -34,11 +45,15 @@ class BPE:
 
             if verbose:
                 print(
-                    f"merge {i + 1}/{num_merges}: Pair: {most_common_pair} -> Id: {idx} ({vocab[idx]}) had {stats[most_common_pair]} occurrences"
+                    f"merge {i + 1}/{num_merges}: Pair: {most_common_pair} -> Id: {idx} ({vocab[idx]}) had {count} occurrences"
                 )
+            elif i % 1000 == 0:  # Log progress every 1000 merges
+                logger.debug(f"Training progress: {i+1}/{num_merges} merges completed")
 
         self.merges = merges
         self.vocab = vocab
+        # Cache sorted merges for efficient encoding (lowest merge index = highest priority)
+        self._sorted_merges = sorted(self.merges.items(), key=lambda x: x[1])
         logger.info(f"BPE training completed with {len(merges)} merges")
 
     def save(self, model_file_name: str):
@@ -71,6 +86,8 @@ class BPE:
 
         self.merges = merges
         self.vocab = self._build_vocab()
+        # Cache sorted merges for efficient encoding (lowest merge index = highest priority)
+        self._sorted_merges = sorted(self.merges.items(), key=lambda x: x[1])
         logger.info(
             f"BPE model loaded with {len(merges)} merges and vocab_size={len(self.vocab)}"
         )
@@ -83,32 +100,52 @@ class BPE:
         return vocab
 
     def encode(self, text: str):
+        logger.debug(f"Encoding text of length {len(text)}")
         text_bytes = text.encode("utf-8")
         ids = list(text_bytes)
+        logger.debug(f"Text encoded to {len(ids)} initial bytes")
 
-        while len(ids) > 2:
-            stats = get_stats(ids)
-            pair = min(stats, key=lambda p: self.merges.get(p, float("inf")))
-            if pair not in self.merges:
-                break  # nothing can be merged
-            idx = self.merges[pair]
-            ids = merge(ids, pair, idx)
+        merge_count = 0
+        while len(ids) >= 2:
+            # Get current pair statistics
+            stats = get_stats(tuple(ids))
+
+            # Find the highest priority mergeable pair
+            mergeable_pair = None
+            merge_idx = float('inf')
+
+            for pair in stats:
+                if pair in self.merges:
+                    pair_idx = self.merges[pair]
+                    if pair_idx < merge_idx:  # Lower index = higher priority
+                        merge_idx = pair_idx
+                        mergeable_pair = pair
+
+            if mergeable_pair is None:
+                break
+
+            ids = merge(ids, mergeable_pair, self.merges[mergeable_pair])
+            merge_count += 1
+
+        logger.debug(f"Encoding completed: {merge_count} merges applied, final token count: {len(ids)}")
         return ids
 
     def decode(self, ids: list[int]):
+        logger.debug(f"Decoding {len(ids)} tokens")
         text_bytes = b"".join(self.vocab[idx] for idx in ids)
         text = text_bytes.decode("utf-8", errors="replace")
+        logger.debug(f"Decoding completed: {len(text)} characters")
         return text
 
+@jit(nopython=True)
+def merge(ids, pair, idx):
 
-def merge(ids: list[int], pair: tuple[int, int], idx: int):
     newids = []
     i = 0
+    n = len(ids)
 
-    while i < len(ids):
-        is_a_match = ids[i] == pair[0] and ids[i + 1] == pair[1]
-        at_the_end = i < len(ids) - 1
-        if not at_the_end and is_a_match:
+    while i < n:
+        if i < n - 1 and ids[i] == pair[0] and ids[i + 1] == pair[1]:
             newids.append(idx)
             i += 2
         else:
@@ -116,12 +153,10 @@ def merge(ids: list[int], pair: tuple[int, int], idx: int):
             i += 1
     return newids
 
-
-def get_stats(ids: list[int]):
+    
+@lru_cache(maxsize=1024)
+def get_stats(ids: tuple[int, ...]):
     """
-    Given a list of integers, return a dictionary of counts of consecutive pairs
+    Given a tuple of integers, return a dictionary of counts of consecutive pairs
     """
-    counts = {}
-    for pair in zip(ids, ids[1:]):  # iterate consecutive elements
-        counts[pair] = counts.get(pair, 0) + 1
-    return counts
+    return Counter(zip(ids, ids[1:]))
