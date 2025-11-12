@@ -65,7 +65,7 @@ class BPE:
         text_bytes = text.encode("utf-8")
         ids = list(text_bytes)
 
-        while len(text_bytes) > 2:
+        while len(ids) > 2:
             stats = get_stats(ids)
             pair = min(stats, key=lambda p: self.merges.get(p, float("inf")))
             if pair not in self.merges:
@@ -86,7 +86,7 @@ def merge(ids: list[int], pair: tuple[int, int], idx: int):
 
     while i < len(ids):
         is_a_match = ids[i] == pair[0] and ids[i + 1] == pair[1]
-        at_the_end = i == len(ids) - 1
+        at_the_end = i < len(ids) - 1
         if not at_the_end and is_a_match:
             newids.append(idx)
             i += 2
