@@ -104,16 +104,3 @@ def get_stats(ids: list[int]):
     for pair in zip(ids, ids[1:]):  # iterate consecutive elements
         counts[pair] = counts.get(pair, 0) + 1
     return counts
-
-
-if __name__ == "__main__":
-    bpe = BPE()
-
-    file_path = (
-        "/Users/joaooliveira/Desktop/GPT-from-scratch/data/tokenizer/taylorswift.txt"
-    )
-    with open(file_path, "r", encoding="utf-8") as f:
-        test_text = f.read()
-
-    bpe.train(test_text, 500, True)
-    bpe.save("bpe_weights")

@@ -1,17 +1,19 @@
 import torch
-from . import config
-from . import data as data_mod
+from .configs import training as training_config
+from .configs import model as model_config
+from .configs import logging as logging_config
+from .data import DataLoader
 from .model import GPTLanguageModel
 
 
 @torch.no_grad()
-def estimate_loss(model):
+def estimate_loss(model, data_loader):
     out = {}
     model.eval()
     for split in ["train", "val"]:
-        losses = torch.zeros(config.eval_iters)
-        for k in range(config.eval_iters):
-            X, Y = data_mod.get_batch(split)
+        losses = torch.zeros(training_config.eval_iters)
+        for k in range(training_config.eval_iters):
+            X, Y = data_loader.get_batch(split)
             _, loss = model(X, Y)
             losses[k] = loss.item()
         out[split] = losses.mean()
@@ -19,28 +21,36 @@ def estimate_loss(model):
     return out
 
 
-def train_loop():
-    logger, log_file = config.init_logger()
-    model = GPTLanguageModel().to(config.device)
+def train_model(tokenizer_path, data_files, model_save_path=None):
+    logger, _ = logging_config.init_logger()
+
+    data_loader = DataLoader(tokenizer_path)
+    data_loader.load_data(data_files)
+
+    model = GPTLanguageModel(data_loader.vocab_size).to(model_config.device)
     logger.info(
-        f"parameters={sum(p.numel() for p in model.parameters()) / 1e6:.3f}M, device={config.device}"
+        f"parameters={sum(p.numel() for p in model.parameters()) / 1e6:.3f}M, device={model_config.device}"
     )
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=config.learning_rate)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=training_config.learning_rate)
 
-    for iter in range(config.max_iters):
-        if iter % config.eval_interval == 0 or iter == config.max_iters - 1:
-            losses = estimate_loss(model)
+    for iter in range(training_config.max_iters):
+        if (
+            iter % training_config.eval_interval == 0
+            or iter == training_config.max_iters - 1
+        ):
+            losses = estimate_loss(model, data_loader)
             logger.info(
                 f"step {iter}: train {losses['train']:.4f}, val {losses['val']:.4f}"
             )
 
-        xb, yb = data_mod.get_batch("train")
+        xb, yb = data_loader.get_batch("train")
         _, loss = model(xb, yb)
         optimizer.zero_grad(set_to_none=True)
         loss.backward()
         optimizer.step()
 
-    logger.info(f"Saving model to {config.model_path}")
-    torch.save(model.state_dict(), config.model_path)
-    return model, data_mod.decode
+    save_path = model_save_path or training_config.model_path
+    logger.info(f"Saving model to {save_path}")
+    torch.save(model.state_dict(), save_path)
+    logger.info(f"Model saved to {save_path}")
