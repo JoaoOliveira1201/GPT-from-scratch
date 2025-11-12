@@ -1,7 +1,10 @@
+import logging
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 from .configs import model as model_config
+
+logger = logging.getLogger(__name__)
 
 
 class MultiHeadAttention(nn.Module):
@@ -73,19 +76,28 @@ class GPTLanguageModel(nn.Module):
     def __init__(self, vocab_size):
         super().__init__()
         self.vocab_size = vocab_size
+        logger.info(f"Initializing GPT model with vocab_size={vocab_size}")
+
         self.token_embedding_table = nn.Embedding(vocab_size, model_config.n_embd)
         self.position_embedding_table = nn.Embedding(
             model_config.block_size, model_config.n_embd
         )
+        logger.info(
+            f"Created embeddings: token({vocab_size}, {model_config.n_embd}), position({model_config.block_size}, {model_config.n_embd})"
+        )
+
         self.blocks = nn.Sequential(
             *[
                 Block(model_config.n_embd, vocab_size)
                 for _ in range(model_config.n_layer)
             ]
         )
+        logger.info(f"Created {model_config.n_layer} transformer blocks")
+
         self.ln_f = nn.LayerNorm(model_config.n_embd)
         self.lm_head = nn.Linear(model_config.n_embd, vocab_size)
         self.apply(self._init_weights)
+        logger.info("Model initialization completed")
 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):

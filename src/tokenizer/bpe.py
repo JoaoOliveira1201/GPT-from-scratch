@@ -1,13 +1,23 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 class BPE:
     def __init__(self):
         self.merges = {}  # (int,int) -> int
         self.vocab = {}  # id -> bytes
 
     def train(self, text: str, vocab_size: int, verbose: bool = False):
+        logger.info(
+            f"Starting BPE training with vocab_size={vocab_size}, text_length={len(text)}"
+        )
+
         assert vocab_size > 256
         num_merges = vocab_size - 256
         text_bytes = text.encode("utf-8")
         ids = list(text_bytes)
+        logger.info(f"Text encoded to {len(ids)} bytes")
 
         merges = {}  # (int, int) -> int
         vocab = {idx: bytes([idx]) for idx in range(256)}  # int -> bytes
@@ -26,17 +36,25 @@ class BPE:
                 print(
                     f"merge {i + 1}/{num_merges}: Pair: {most_common_pair} -> Id: {idx} ({vocab[idx]}) had {stats[most_common_pair]} occurrences"
                 )
+
         self.merges = merges
         self.vocab = vocab
+        logger.info(f"BPE training completed with {len(merges)} merges")
 
     def save(self, model_file_name: str):
         model_file = model_file_name + ".model"
+        logger.info(f"Saving BPE model to {model_file} with {len(self.merges)} merges")
+
         with open(model_file, "w") as f:
             f.write("Byte pair encoding - João\n")
             for merge_combo_1, merge_combo_2 in self.merges.keys():
                 f.write(f"{merge_combo_1} {merge_combo_2}\n")
 
+        logger.info(f"BPE model saved to {model_file}")
+
     def load(self, model_file: str):
+        logger.info(f"Loading BPE model from {model_file}")
+
         assert model_file.endswith(".model")
 
         merges = {}
@@ -53,6 +71,9 @@ class BPE:
 
         self.merges = merges
         self.vocab = self._build_vocab()
+        logger.info(
+            f"BPE model loaded with {len(merges)} merges and vocab_size={len(self.vocab)}"
+        )
 
     def _build_vocab(self):
         # vocab is simply and deterministically derived from merges

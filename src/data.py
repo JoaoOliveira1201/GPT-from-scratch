@@ -1,11 +1,13 @@
+import logging
 import torch
 from .configs import training as training_config
 from .configs import model as model_config
 from .tokenizer.bpe import BPE
 
+logger = logging.getLogger(__name__)
+
 
 class DataLoader:
-
     def __init__(self, tokenizer_path=None):
         self.tokenizer = None
         self.train_data = None
@@ -16,16 +18,22 @@ class DataLoader:
             self.load_tokenizer(tokenizer_path)
 
     def load_tokenizer(self, tokenizer_path):
+        logger.info(f"Loading tokenizer from {tokenizer_path}")
         self.tokenizer = BPE()
         self.tokenizer.load(tokenizer_path)
         self.vocab_size = 256 + len(self.tokenizer.merges)
+        logger.info(f"Tokenizer loaded with vocab_size={self.vocab_size}")
 
     def load_data(self, file_paths):
+        logger.info(f"Loading data from files: {file_paths}")
+
         combined_text = ""
         for file_path in file_paths:
             try:
                 with open(file_path, "r", encoding="utf-8") as f:
-                    combined_text += f.read()
+                    text = f.read()
+                    combined_text += text
+                    logger.info(f"Loaded {len(text)} characters from {file_path}")
             except FileNotFoundError:
                 raise FileNotFoundError(f"File '{file_path}' not found")
             except Exception as e:
@@ -37,10 +45,14 @@ class DataLoader:
         if self.tokenizer is None:
             raise ValueError("Tokenizer must be loaded before loading data")
 
+        logger.info(f"Encoding {len(combined_text)} characters of text")
         data = torch.tensor(self.encode(combined_text), dtype=torch.long)
         n = int(training_config.train_test_split * len(data))
         self.train_data = data[:n]
         self.val_data = data[n:]
+        logger.info(
+            f"Data split: train={len(self.train_data)}, val={len(self.val_data)} tokens"
+        )
 
     def encode(self, text):
         if self.tokenizer is None:

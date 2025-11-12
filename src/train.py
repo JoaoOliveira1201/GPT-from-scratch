@@ -1,9 +1,11 @@
+import logging
 import torch
 from .configs import training as training_config
 from .configs import model as model_config
-from .configs import logging as logging_config
 from .data import DataLoader
 from .model import GPTLanguageModel
+
+logger = logging.getLogger(__name__)
 
 
 @torch.no_grad()
@@ -22,8 +24,6 @@ def estimate_loss(model, data_loader):
 
 
 def train_model(tokenizer_path, data_files, model_save_path=None):
-    logger, _ = logging_config.init_logger()
-
     data_loader = DataLoader(tokenizer_path)
     data_loader.load_data(data_files)
 
