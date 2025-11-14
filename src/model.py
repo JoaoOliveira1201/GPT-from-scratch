@@ -1,7 +1,9 @@
 import logging
+
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
+
 from .configs import model as model_config
 
 logger = logging.getLogger(__name__)
@@ -76,14 +78,10 @@ class GPTLanguageModel(nn.Module):
     def __init__(self, vocab_size):
         super().__init__()
         self.vocab_size = vocab_size
-        logger.info(f"Initializing GPT model with vocab_size={vocab_size}")
 
         self.token_embedding_table = nn.Embedding(vocab_size, model_config.n_embd)
         self.position_embedding_table = nn.Embedding(
             model_config.block_size, model_config.n_embd
-        )
-        logger.info(
-            f"Created embeddings: token({vocab_size}, {model_config.n_embd}), position({model_config.block_size}, {model_config.n_embd})"
         )
 
         self.blocks = nn.Sequential(
@@ -92,12 +90,10 @@ class GPTLanguageModel(nn.Module):
                 for _ in range(model_config.n_layer)
             ]
         )
-        logger.info(f"Created {model_config.n_layer} transformer blocks")
 
         self.ln_f = nn.LayerNorm(model_config.n_embd)
         self.lm_head = nn.Linear(model_config.n_embd, vocab_size)
         self.apply(self._init_weights)
-        logger.info("Model initialization completed")
 
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
@@ -108,23 +104,18 @@ class GPTLanguageModel(nn.Module):
             torch.nn.init.normal_(module.weight, mean=0.0, std=0.02)
 
     def forward(self, idx, targets=None):
-        logger.debug("Starting forward pass")
-        B, T = idx.shape
-        logger.debug(f"Input shape: batch_size={B}, seq_len={T}")
+        _, T = idx.shape
 
         tok_emb = self.token_embedding_table(idx)
         pos_emb = self.position_embedding_table(
             torch.arange(T, device=model_config.device)
         )
         x = tok_emb + pos_emb
-        logger.debug("Embeddings computed")
 
         x = self.blocks(x)
-        logger.debug("Transformer blocks processed")
 
         x = self.ln_f(x)
         logits = self.lm_head(x)
-        logger.debug("Logits computed")
 
         loss = None
         if targets is not None:
@@ -137,14 +128,7 @@ class GPTLanguageModel(nn.Module):
         return logits, loss
 
     def generate(self, idx, max_new_tokens):
-        logger.debug(f"Starting token generation: max_new_tokens={max_new_tokens}")
-        initial_length = idx.shape[1]
-        logger.debug(f"Initial sequence length: {initial_length}")
-
-        for i in range(max_new_tokens):
-            if i % 100 == 0 and i > 0:
-                logger.debug(f"Generated {i}/{max_new_tokens} tokens")
-
+        for _ in range(max_new_tokens):
             idx_cond = idx[:, -model_config.block_size :]
             logits, _ = self(idx_cond)
             logits = logits[:, -1, :]
@@ -152,6 +136,4 @@ class GPTLanguageModel(nn.Module):
             idx_next = torch.multinomial(probs, num_samples=1)
             idx = torch.cat((idx, idx_next), dim=1)
 
-        final_length = idx.shape[1]
-        logger.debug(f"Generation completed: final length={final_length}, generated {final_length - initial_length} tokens")
         return idx
