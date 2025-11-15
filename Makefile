@@ -1,4 +1,15 @@
-.PHONY: train-tokenizer train inference print_model_info format run
+.PHONY: help train-tokenizer train inference print_model_info format run clean
+
+help:
+	@echo "Usage: make <target>"
+	@echo "Targets:"
+	@echo "  train-tokenizer - Train the tokenizer"
+	@echo "  train - Train the model"
+	@echo "  inference - Run inference"
+	@echo "  print_model_info - Print model information"
+	@echo "  format - Format the code"
+	@echo "  run - Run everything"
+	@echo "  clean - Clean the project"
 
 train-tokenizer:
 	uv run python -m src.tokenizer.train

@@ -1,7 +1,7 @@
 import logging
 from collections import Counter
 from functools import lru_cache
-
+import regex as re
 from numba import jit
 
 logger = logging.getLogger(__name__)
@@ -9,6 +9,8 @@ logger = logging.getLogger(__name__)
 
 class BPE:
     def __init__(self):
+        self.gpt_split_pattern = r"""'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}{1,3}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+"""
+        self.gpt_split_pattern = re.compile(self.gpt_split_pattern)
         self.merges = {}  # (int,int) -> int
         self.vocab = {}  # id -> bytes
         self._sorted_merges = None
@@ -20,15 +22,27 @@ class BPE:
 
         assert vocab_size > 256
         num_merges = vocab_size - 256
-        text_bytes = text.encode("utf-8")
-        ids = list(text_bytes)
-        logger.info(f"Text encoded to {len(ids)} bytes")
+        chunks = self.gpt_split_pattern.findall(text)
+        logger.info(f"Text split into {len(chunks)} chunks")
+        
+        chunk_ids_list = []
+        for chunk in chunks:
+            text_bytes = chunk.encode("utf-8")
+            ids = list(text_bytes)
+            chunk_ids_list.append(ids)
+        
+        total_bytes = sum(len(ids) for ids in chunk_ids_list)
+        logger.info(f"Chunks encoded to {total_bytes} total bytes")
 
         merges = {}
         vocab = {idx: bytes([idx]) for idx in range(256)}
 
         for i in range(num_merges):
-            pair_counts = Counter(zip(ids, ids[1:]))
+            
+            pair_counts = Counter()
+            for ids in chunk_ids_list:
+                if len(ids) >= 2:
+                    pair_counts.update(zip(ids, ids[1:]))
 
             if not pair_counts:
                 break
@@ -36,7 +50,7 @@ class BPE:
             most_common_pair, count = pair_counts.most_common(1)[0]
             idx = 256 + i
 
-            ids = merge(ids, most_common_pair, idx)
+            chunk_ids_list = [merge(ids, most_common_pair, idx) for ids in chunk_ids_list]
 
             merges[most_common_pair] = idx
             vocab[idx] = vocab[most_common_pair[0]] + vocab[most_common_pair[1]]
@@ -98,33 +112,39 @@ class BPE:
 
     def encode(self, text: str):
         logger.debug(f"Encoding text of length {len(text)}")
-        text_bytes = text.encode("utf-8")
-        ids = list(text_bytes)
+        chunks = self.gpt_split_pattern.findall(text)
+        all_ids = []
 
-        merge_count = 0
-        while len(ids) >= 2:
-            stats = get_stats(tuple(ids))
+        for chunk in chunks:
+            text_bytes = chunk.encode("utf-8")
+            ids = list(text_bytes)
 
-            mergeable_pair = None
-            merge_idx = float("inf")
+            merge_count = 0
+            while len(ids) >= 2:
+                stats = get_stats(tuple(ids))
 
-            for pair in stats:
-                if pair in self.merges:
-                    pair_idx = self.merges[pair]
-                    if pair_idx < merge_idx:
-                        merge_idx = pair_idx
-                        mergeable_pair = pair
+                mergeable_pair = None
+                merge_idx = float("inf")
 
-            if mergeable_pair is None:
-                break
+                for pair in stats:
+                    if pair in self.merges:
+                        pair_idx = self.merges[pair]
+                        if pair_idx < merge_idx:
+                            merge_idx = pair_idx
+                            mergeable_pair = pair
 
-            ids = merge(ids, mergeable_pair, self.merges[mergeable_pair])
-            merge_count += 1
+                if mergeable_pair is None:
+                    break
+
+                ids = merge(ids, mergeable_pair, self.merges[mergeable_pair])
+                merge_count += 1
+
+            all_ids.extend(ids)
 
         logger.debug(
-            f"Encoding completed: {merge_count} merges applied, final token count: {len(ids)}"
+            f"Encoding completed: {len(chunks)} chunks processed, final token count: {len(all_ids)}"
         )
-        return ids
+        return all_ids
 
     def decode(self, ids: list[int]):
         logger.debug(f"Decoding {len(ids)} tokens")
