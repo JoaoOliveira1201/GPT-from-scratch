@@ -84,3 +84,20 @@ def log_artifact(local_path: str, artifact_path: Optional[str] = None):
 def end_run():
     mlflow.end_run()
     logger.info("MLflow run ended.")
+
+
+# Wrapper functions for standard logging methods
+def info(msg: str):
+    logger.info(msg)
+
+
+def debug(msg: str):
+    logger.debug(msg)
+
+
+def warning(msg: str):
+    logger.warning(msg)
+
+
+def error(msg: str):
+    logger.error(msg)

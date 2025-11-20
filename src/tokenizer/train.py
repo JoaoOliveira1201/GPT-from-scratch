@@ -1,16 +1,12 @@
-import logging
 import os
+
+import src.logger as mlflow_logger
 
 from ..configs import tokenizer as tokenizer_config
 from .bpe import BPE
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-
 if __name__ == "__main__":
-    logger.info("Starting tokenizer training process")
+    mlflow_logger.info("Starting tokenizer training process")
     bpe = BPE()
 
     combined_text = ""
@@ -21,22 +17,24 @@ if __name__ == "__main__":
             with open(file_path, "r", encoding="utf-8") as f:
                 file_content = f.read()
                 combined_text += file_content
-                logger.info(f"Loaded {len(file_content)} characters from {file_path}")
+                mlflow_logger.info(
+                    f"Loaded {len(file_content)} characters from {file_path}"
+                )
         except FileNotFoundError:
-            logger.error(f"File '{file_path}' not found")
+            mlflow_logger.error(f"File '{file_path}' not found")
             raise
         except Exception as e:
-            logger.error(f"Error reading file '{file_path}': {e}")
+            mlflow_logger.error(f"Error reading file '{file_path}': {e}")
             raise
 
     if not combined_text:
-        logger.error("No text content found in input files")
+        mlflow_logger.error("No text content found in input files")
         exit(1)
 
-    logger.info(f"Total files: {total_files}")
-    logger.info(f"Total characters: {len(combined_text)}")
+    mlflow_logger.info(f"Total files: {total_files}")
+    mlflow_logger.info(f"Total characters: {len(combined_text)}")
 
-    logger.info(
+    mlflow_logger.info(
         f"Training tokenizer with vocab_size={tokenizer_config.tokenizer_vocab_size}"
     )
     bpe.train(
@@ -45,8 +43,8 @@ if __name__ == "__main__":
         tokenizer_config.tokenizer_verbose,
     )
 
-    logger.info(f"Number of merges: {len(bpe.merges)}")
-    logger.info(f"Final vocab size: {len(bpe.vocab)}")
+    mlflow_logger.info(f"Number of merges: {len(bpe.merges)}")
+    mlflow_logger.info(f"Final vocab size: {len(bpe.vocab)}")
 
     if not os.path.exists(tokenizer_config.tokenizer_output_dir):
         os.makedirs(tokenizer_config.tokenizer_output_dir)

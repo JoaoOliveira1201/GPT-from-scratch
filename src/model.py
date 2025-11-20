@@ -1,12 +1,8 @@
-import logging
-
 import torch
 import torch.nn as nn
 from torch.nn import functional as F
 
 from .configs import model as model_config
-
-logger = logging.getLogger(__name__)
 
 
 class MultiHeadAttention(nn.Module):

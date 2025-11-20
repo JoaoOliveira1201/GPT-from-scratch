@@ -1,17 +1,14 @@
 import argparse
-import logging
 
 import torch
 
+import src.logger as mlflow_logger
 from src.configs import model as model_config
 from src.configs import training as training_config
 from src.data.data_loader import DataLoader
 from src.inference import run_inference
-from src.logger import logger as mlflow_logger
 from src.model import GPTLanguageModel
 from src.train import train_model
-
-logger = logging.getLogger(__name__)
 
 
 def train():
@@ -24,11 +21,11 @@ def train():
         mlflow_logger.end_run()
         return model, decode_fn
     except FileNotFoundError as e:
-        logger.error(f"Training failed: Required file not found - {e}")
+        mlflow_logger.error(f"Training failed: Required file not found - {e}")
         mlflow_logger.end_run()
         raise
     except Exception as e:
-        logger.error(f"Training failed with unexpected error: {e}")
+        mlflow_logger.error(f"Training failed with unexpected error: {e}")
         mlflow_logger.end_run()
         raise
 
@@ -41,7 +38,7 @@ def inference():
         try:
             model.load_state_dict(torch.load(training_config.model_path))
         except FileNotFoundError:
-            logger.error(f"Model file not found at {training_config.model_path}")
+            mlflow_logger.error(f"Model file not found at {training_config.model_path}")
             raise
 
         model.to(model_config.device)
@@ -51,7 +48,7 @@ def inference():
         print(text)
 
     except Exception as e:
-        logger.error(f"Inference failed: {e}")
+        mlflow_logger.error(f"Inference failed: {e}")
         raise
 
 
@@ -61,14 +58,14 @@ def print_model_info():
         model = GPTLanguageModel(data_loader.vocab_size)
 
         total_params = sum(p.numel() for p in model.parameters())
-        logger.info(
+        mlflow_logger.info(
             f"Model created with vocab_size={data_loader.vocab_size}, {total_params / 1e6:.3f}M parameters"
         )
         print(model)
         print(f"parameters={total_params / 1e6:.3f}M, device={model_config.device}")
 
     except Exception as e:
-        logger.error(f"Failed to print model info: {e}")
+        mlflow_logger.error(f"Failed to print model info: {e}")
         raise
 
 

@@ -1,11 +1,10 @@
-import logging
 from collections import Counter
 from functools import lru_cache
 
 import regex as re
 from numba import jit
 
-logger = logging.getLogger(__name__)
+import src.logger as mlflow_logger
 
 
 class BPE:
@@ -17,14 +16,14 @@ class BPE:
         self._sorted_merges = None
 
     def train(self, text: str, vocab_size: int, verbose: bool = False):
-        logger.info(
+        mlflow_logger.info(
             f"Starting BPE training with vocab_size={vocab_size}, text_length={len(text)}"
         )
 
         assert vocab_size > 256
         num_merges = vocab_size - 256
         chunks = self.gpt_split_pattern.findall(text)
-        logger.info(f"Text split into {len(chunks)} chunks")
+        mlflow_logger.info(f"Text split into {len(chunks)} chunks")
 
         chunk_ids_list = []
         for chunk in chunks:
@@ -33,7 +32,7 @@ class BPE:
             chunk_ids_list.append(ids)
 
         total_bytes = sum(len(ids) for ids in chunk_ids_list)
-        logger.info(f"Chunks encoded to {total_bytes} total bytes")
+        mlflow_logger.info(f"Chunks encoded to {total_bytes} total bytes")
 
         merges = {}
         vocab = {idx: bytes([idx]) for idx in range(256)}
@@ -62,28 +61,30 @@ class BPE:
                     f"merge {i + 1}/{num_merges}: Pair: {most_common_pair} -> Id: {idx} ({vocab[idx]}) had {count} occurrences"
                 )
             elif i % 1000 == 0:
-                logger.debug(
+                mlflow_logger.debug(
                     f"Training progress: {i + 1}/{num_merges} merges completed"
                 )
 
         self.merges = merges
         self.vocab = vocab
         self._sorted_merges = sorted(self.merges.items(), key=lambda x: x[1])
-        logger.info(f"BPE training completed with {len(self.merges)} merges")
+        mlflow_logger.info(f"BPE training completed with {len(self.merges)} merges")
 
     def save(self, model_file_name: str):
         model_file = model_file_name + ".model"
-        logger.info(f"Saving BPE model to {model_file} with {len(self.merges)} merges")
+        mlflow_logger.info(
+            f"Saving BPE model to {model_file} with {len(self.merges)} merges"
+        )
 
         with open(model_file, "w") as f:
             f.write("Byte pair encoding - João\n")
             for merge_combo_1, merge_combo_2 in self.merges.keys():
                 f.write(f"{merge_combo_1} {merge_combo_2}\n")
 
-        logger.info(f"BPE model saved to {model_file}")
+        mlflow_logger.info(f"BPE model saved to {model_file}")
 
     def load(self, model_file: str):
-        logger.info(f"Loading BPE model from {model_file}")
+        mlflow_logger.info(f"Loading BPE model from {model_file}")
 
         assert model_file.endswith(".model")
 
@@ -102,7 +103,7 @@ class BPE:
         self.merges = merges
         self.vocab = self._build_vocab()
         self._sorted_merges = sorted(self.merges.items(), key=lambda x: x[1])
-        logger.info(
+        mlflow_logger.info(
             f"BPE model loaded with {len(merges)} merges and vocab_size={len(self.vocab)}"
         )
 
@@ -113,7 +114,7 @@ class BPE:
         return vocab
 
     def encode(self, text: str):
-        logger.debug(f"Encoding text of length {len(text)}")
+        mlflow_logger.debug(f"Encoding text of length {len(text)}")
         chunks = self.gpt_split_pattern.findall(text)
         all_ids = []
 
@@ -143,16 +144,16 @@ class BPE:
 
             all_ids.extend(ids)
 
-        logger.debug(
+        mlflow_logger.debug(
             f"Encoding completed: {len(chunks)} chunks processed, final token count: {len(all_ids)}"
         )
         return all_ids
 
     def decode(self, ids: list[int]):
-        logger.debug(f"Decoding {len(ids)} tokens")
+        mlflow_logger.debug(f"Decoding {len(ids)} tokens")
         text_bytes = b"".join(self.vocab[idx] for idx in ids)
         text = text_bytes.decode("utf-8", errors="replace")
-        logger.debug(f"Decoding completed: {len(text)} characters")
+        mlflow_logger.debug(f"Decoding completed: {len(text)} characters")
         return text
 
 

@@ -1,16 +1,15 @@
-import logging
 import time
 
 import torch
 from torch.amp import GradScaler, autocast
 
+import src.logger as mlflow_logger
+from src.data.data_loader import DataLoader
+
 from .configs import model as model_config
 from .configs import training as training_config
-from src.data.data_loader import DataLoader
-from .logger import logger as mlflow_logger
 from .model import GPTLanguageModel
 
-logger = logging.getLogger(__name__)
 torch.set_float32_matmul_precision("high")
 
 
@@ -25,19 +24,16 @@ def estimate_loss(model, data_loader):
             X, Y = data_loader.get_batch(split)
             _, loss = model(X, Y)
             losses[k] = loss.item()
-            logger.debug(
-                f"  {split} batch {k + 1}/{training_config.eval_iters}: loss={loss.item():.4f}"
-            )
-
+            #mlflow_logger.debug(f"  {split} batch {k + 1}/{training_config.eval_iters}: loss={loss.item():.4f}")
         out[split] = losses.mean()
-        logger.debug(f"  {split} average loss: {out[split]:.4f}")
+        mlflow_logger.debug(f"  {split} average loss: {out[split]:.4f}")
 
     model.train()
     return out
 
 
 def train_model(tokenizer_path, data_files, model_save_path=None):
-    logger.info("Starting model training process")
+    mlflow_logger.info("Starting model training process")
     start_time = time.time()
 
     data_loader = DataLoader(tokenizer_path)
@@ -47,7 +43,7 @@ def train_model(tokenizer_path, data_files, model_save_path=None):
     model = torch.compile(model)
 
     total_params = sum(p.numel() for p in model.parameters())
-    logger.info(
+    mlflow_logger.info(
         f"Model initialized: {total_params / 1e6:.3f}M parameters, device={model_config.device}"
     )
 
@@ -104,11 +100,13 @@ def train_model(tokenizer_path, data_files, model_save_path=None):
 
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
-                logger.info(
+                mlflow_logger.info(
                     f"step {iter}: train {train_loss:.4f}, val {val_loss:.4f} (NEW BEST)"
                 )
             else:
-                logger.info(f"step {iter}: train {train_loss:.4f}, val {val_loss:.4f}")
+                mlflow_logger.info(
+                    f"step {iter}: train {train_loss:.4f}, val {val_loss:.4f}"
+                )
 
         xb, yb = data_loader.get_batch("train")
 
@@ -125,11 +123,11 @@ def train_model(tokenizer_path, data_files, model_save_path=None):
             elapsed = time.time() - training_start
             progress = (iter + 1) / training_config.max_iters
             eta = elapsed / progress - elapsed if progress > 0 else 0
-            logger.info(
+            mlflow_logger.info(
                 f"step {iter}: training... ({progress:.1%} complete, ETA: {eta:.0f}s)"
             )
     total_training_time = time.time() - start_time
-    logger.info(
+    mlflow_logger.info(
         f"Training completed in {total_training_time:.2f}s ({total_training_time / 60:.1f}min)"
     )
 
@@ -144,13 +142,13 @@ def train_model(tokenizer_path, data_files, model_save_path=None):
 
     save_path = model_save_path or training_config.model_path
     torch.save(model.state_dict(), save_path)
-    logger.info(f"Model saved locally to {save_path}")
+    mlflow_logger.info(f"Model saved locally to {save_path}")
 
     # Log model artifact to MLflow (using state dict file instead of model object)
     try:
         mlflow_logger.log_artifact(save_path, artifact_path="model")
-        logger.info("Model artifact logged to MLflow")
+        mlflow_logger.info("Model artifact logged to MLflow")
     except Exception as e:
-        logger.warning(f"Could not log model artifact to MLflow: {e}")
+        mlflow_logger.warning(f"Could not log model artifact to MLflow: {e}")
 
     return model, data_loader.decode
