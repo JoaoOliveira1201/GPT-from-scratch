@@ -8,6 +8,7 @@ from .configs import model as model_config
 
 logger = logging.getLogger(__name__)
 
+
 class MultiHeadAttention(nn.Module):
     def __init__(self, vocab_size):
         super().__init__()
