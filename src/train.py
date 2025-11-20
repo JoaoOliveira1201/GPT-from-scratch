@@ -2,6 +2,7 @@ import logging
 import time
 
 import torch
+from torch.amp import autocast, GradScaler
 
 from .configs import model as model_config
 from .configs import training as training_config
@@ -10,7 +11,7 @@ from .logger import logger as mlflow_logger
 from .model import GPTLanguageModel
 
 logger = logging.getLogger(__name__)
-
+torch.set_float32_matmul_precision('high')
 
 @torch.no_grad()
 def estimate_loss(model, data_loader):
@@ -42,6 +43,8 @@ def train_model(tokenizer_path, data_files, model_save_path=None):
     data_loader.load_data(data_files)
 
     model = GPTLanguageModel(data_loader.vocab_size).to(model_config.device)
+    model = torch.compile(model)
+
     total_params = sum(p.numel() for p in model.parameters())
     logger.info(
         f"Model initialized: {total_params / 1e6:.3f}M parameters, device={model_config.device}"
@@ -70,16 +73,17 @@ def train_model(tokenizer_path, data_files, model_save_path=None):
         }
     )
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=training_config.learning_rate)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=training_config.learning_rate, fused=True if model_config.device == "cuda" else False)
+    scaler = GradScaler()
 
     best_val_loss = float("inf")
     training_start = time.time()
 
     for iter in range(training_config.max_iters):
-        if (
-            iter % training_config.eval_interval == 0
-            or iter == training_config.max_iters - 1
-        ):
+
+        should_eval = (iter % training_config.eval_interval == 0) or (iter == training_config.max_iters - 1)
+
+        if should_eval:
             losses = estimate_loss(model, data_loader)
 
             train_loss = losses["train"]
@@ -101,10 +105,15 @@ def train_model(tokenizer_path, data_files, model_save_path=None):
                 logger.info(f"step {iter}: train {train_loss:.4f}, val {val_loss:.4f}")
 
         xb, yb = data_loader.get_batch("train")
-        _, loss = model(xb, yb)
+
+        with autocast('cuda'):
+            _, loss = model(xb, yb)
         optimizer.zero_grad(set_to_none=True)
-        loss.backward()
-        optimizer.step()
+
+        scaler.scale(loss).backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        scaler.step(optimizer)
+        scaler.update()
 
         if iter % (training_config.eval_interval // 4) == 0:
             elapsed = time.time() - training_start

@@ -8,7 +8,6 @@ from .configs import model as model_config
 
 logger = logging.getLogger(__name__)
 
-
 class MultiHeadAttention(nn.Module):
     def __init__(self, vocab_size):
         super().__init__()
@@ -30,18 +29,18 @@ class MultiHeadAttention(nn.Module):
         self.dropout = nn.Dropout(model_config.dropout)
 
     def forward(self, x):
-        _, T, _ = x.shape
+        B, T, C = x.shape
 
         q, k, v = self.c_attn(x).chunk(3, dim=-1)
 
-        wei = (
-            q @ k.transpose(-2, -1) * k.shape[-1] ** -0.5
-        )  # Using torch scaled dot product attention is faster but this is cooler
-        wei = wei.masked_fill(self.tril[:T, :T] == 0, float("-inf"))
-        wei = F.softmax(wei, dim=-1)
-        wei = self.dropout(wei)
-        out = wei @ v
+        head_dim = C // model_config.n_head
+        q = q.view(B, T, model_config.n_head, head_dim).transpose(1, 2)
+        k = k.view(B, T, model_config.n_head, head_dim).transpose(1, 2)
+        v = v.view(B, T, model_config.n_head, head_dim).transpose(1, 2)
 
+        out = F.scaled_dot_product_attention(q, k, v, is_causal=True)
+
+        out = out.transpose(1, 2).contiguous().view(B, T, C)
         out = self.dropout(self.c_proj(out))
         return out
 
@@ -123,7 +122,6 @@ class GPTLanguageModel(nn.Module):
             logits_flat = logits.view(B2 * T2, C)
             targets_flat = targets.view(B2 * T2)
             loss = F.cross_entropy(logits_flat, targets_flat)
-            logger.debug(f"Loss computed: {loss.item():.4f}")
 
         return logits, loss
 
