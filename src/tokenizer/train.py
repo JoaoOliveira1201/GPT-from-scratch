@@ -1,14 +1,15 @@
 import logging
 import os
 
-from ..configs import logging as logging_config
 from ..configs import tokenizer as tokenizer_config
 from .bpe import BPE
 
 logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 if __name__ == "__main__":
-    logging_config.setup_logging()
     logger.info("Starting tokenizer training process")
     bpe = BPE()
 
@@ -32,6 +33,9 @@ if __name__ == "__main__":
         logger.error("No text content found in input files")
         exit(1)
 
+    logger.info(f"Total files: {total_files}")
+    logger.info(f"Total characters: {len(combined_text)}")
+
     logger.info(
         f"Training tokenizer with vocab_size={tokenizer_config.tokenizer_vocab_size}"
     )
@@ -41,6 +45,9 @@ if __name__ == "__main__":
         tokenizer_config.tokenizer_verbose,
     )
 
+    logger.info(f"Number of merges: {len(bpe.merges)}")
+    logger.info(f"Final vocab size: {len(bpe.vocab)}")
+
     if not os.path.exists(tokenizer_config.tokenizer_output_dir):
         os.makedirs(tokenizer_config.tokenizer_output_dir)
 
@@ -48,4 +55,3 @@ if __name__ == "__main__":
         tokenizer_config.tokenizer_output_dir, tokenizer_config.tokenizer_file_name
     )
     bpe.save(output_path)
-    logger.info("Tokenizer training and saving completed successfully")

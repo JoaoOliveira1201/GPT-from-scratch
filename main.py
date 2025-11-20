@@ -3,11 +3,11 @@ import logging
 
 import torch
 
-from src.configs import logging as logging_config
 from src.configs import model as model_config
 from src.configs import training as training_config
 from src.data import DataLoader
 from src.inference import run_inference
+from src.logger import logger as mlflow_logger
 from src.model import GPTLanguageModel
 from src.train import train_model
 
@@ -20,12 +20,16 @@ def train():
             tokenizer_path="weights/bpe_weights/bpe_weights.model",
             data_files=training_config.gpt_files,
         )
+        # End MLflow run after training
+        mlflow_logger.end_run()
         return model, decode_fn
     except FileNotFoundError as e:
         logger.error(f"Training failed: Required file not found - {e}")
+        mlflow_logger.end_run()
         raise
     except Exception as e:
         logger.error(f"Training failed with unexpected error: {e}")
+        mlflow_logger.end_run()
         raise
 
 
@@ -69,8 +73,6 @@ def print_model_info():
 
 
 if __name__ == "__main__":
-    logging_config.setup_logging()
-
     parser = argparse.ArgumentParser(description="GPT from scratch")
     parser.add_argument("--train", action="store_true", help="Train the model")
     parser.add_argument("--inference", action="store_true", help="Run inference")
@@ -81,6 +83,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.train:
+        mlflow_logger.setup_logging("gpt_training")
         train()
     if args.inference:
         inference()

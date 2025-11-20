@@ -11,3 +11,5 @@
 logs/
 weights/
 *.csv
+.env
+src/logger/cloud_auth.py

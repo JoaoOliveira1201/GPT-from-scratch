@@ -1,6 +1,7 @@
 import logging
 from collections import Counter
 from functools import lru_cache
+
 import regex as re
 from numba import jit
 
@@ -24,13 +25,13 @@ class BPE:
         num_merges = vocab_size - 256
         chunks = self.gpt_split_pattern.findall(text)
         logger.info(f"Text split into {len(chunks)} chunks")
-        
+
         chunk_ids_list = []
         for chunk in chunks:
             text_bytes = chunk.encode("utf-8")
             ids = list(text_bytes)
             chunk_ids_list.append(ids)
-        
+
         total_bytes = sum(len(ids) for ids in chunk_ids_list)
         logger.info(f"Chunks encoded to {total_bytes} total bytes")
 
@@ -38,7 +39,6 @@ class BPE:
         vocab = {idx: bytes([idx]) for idx in range(256)}
 
         for i in range(num_merges):
-            
             pair_counts = Counter()
             for ids in chunk_ids_list:
                 if len(ids) >= 2:
@@ -50,7 +50,9 @@ class BPE:
             most_common_pair, count = pair_counts.most_common(1)[0]
             idx = 256 + i
 
-            chunk_ids_list = [merge(ids, most_common_pair, idx) for ids in chunk_ids_list]
+            chunk_ids_list = [
+                merge(ids, most_common_pair, idx) for ids in chunk_ids_list
+            ]
 
             merges[most_common_pair] = idx
             vocab[idx] = vocab[most_common_pair[0]] + vocab[most_common_pair[1]]
