@@ -6,7 +6,7 @@ from torch.amp import GradScaler, autocast
 
 from .configs import model as model_config
 from .configs import training as training_config
-from .data import DataLoader
+from src.data.data_loader import DataLoader
 from .logger import logger as mlflow_logger
 from .model import GPTLanguageModel
 

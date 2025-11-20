@@ -5,7 +5,7 @@ import torch
 
 from src.configs import model as model_config
 from src.configs import training as training_config
-from src.data import DataLoader
+from src.data.data_loader import DataLoader
 from src.inference import run_inference
 from src.logger import logger as mlflow_logger
 from src.model import GPTLanguageModel
